@@ -5,7 +5,7 @@
 """
 from distutils.dir_util import copy_tree
 from os import makedirs
-from os.path import abspath, basename, dirname, isdir, join
+from os.path import join
 
 
 def place_files_for_each_model(out_dir):
