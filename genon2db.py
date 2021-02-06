@@ -152,7 +152,7 @@ def generate_labelobj(otoini: OtoIni, d_table: dict) -> up.label.Label:
 
 def generate_labfile(path_otoini, path_table, out_dir, tempo, notename, uta_vcv_mode):
     """
-    ラベルファイルを生成する。
+    ラベルファイルを生成する。wavファイルの複製もする。
     """
     # 原音設定ファイル(oto.ini)を読み取る
     otoini = up.otoini.load(path_otoini)
@@ -186,7 +186,7 @@ def generate_labfile(path_otoini, path_table, out_dir, tempo, notename, uta_vcv_
         mono_label = generate_labelobj(otoini, table)
         mono_label.write(join(out_dir, 'label_phone_align', f'{prefix}{name}.lab'))
         # フルラベル生成してファイル出力
-        song = up.utils._ust2hts.convert_ustobj_to_songobj(ust, table)
+        song = up.utils.ustobj2songobj(ust, table)
         song.write(join(out_dir, 'label_phone_score', f'{prefix}{name}.lab'),
                    strict_sinsy_style=False)
         # wavファイルを複製(遅いので最後)
@@ -217,38 +217,60 @@ def mono2full_and_round(mono_align_dir, full_score_dir, prefix):
         full_label.write(path_full)
 
 
+def guess_notename_from_prefix(prefix, d_notename2notenum: dict):
+    """
+    エイリアスまたはフォルダ名に設定されてるprefixの値から、収録音階を推定する。
+    prefix
+    """
+    notenames = d_notename2notenum.keys()
+    for notename in notenames:
+        if prefix in notename:
+            return notename
+    return None
+
+
 def main():
     """
     音階や録音形式を指定してもらって、USTファイル生成を実行する。
     """
     # ファイルを出力するフォルダ
     out_dir = './data'
+
     # かな→音素変換テーブルを指定
     path_table = input('tableファイルを指定してください。\n>>> ')
+
     # oto.iniファイルを選択してもらう
     path_otoini = input('原音設定ファイルを指定してください。\n>>> ').strip('"')
     if isdir(path_otoini):
         path_otoini = join(path_otoini, 'oto.ini')
+
     # 原音の収録テンポ
     tempo = float(input('収録テンポを入力してください。\n>>> '))
-    # 原音フォルダ名が音階になってたら自動決定
+
+    # 原音フォルダ名から収録音階を推測する。
     prefix = basename(dirname(path_otoini))
-    if prefix in NOTENAME_TO_NOTENUM_DICT:
-        notename = prefix
-    else:
+    notename = guess_notename_from_prefix(prefix, NOTENAME_TO_NOTENUM_DICT)
+    if notename is None:
         notename = input('原音の音程を入力してください。\n>>> ')
+
     # 歌連続音かどうか
     uta_vcv_mode = input('歌連続音ですか？[Y/y/N/n]\n>>> ')
     uta_vcv_mode = bool(uta_vcv_mode in ['Y', 'y'])
 
     # ここから本処理------------------------------------------------------------------------
+
     # otoiniをもとにモノラベルとフルラベルを作る。
     print('Converting oto.ini to label filesj and UST files and copying WAV files.')
     generate_labfile(path_otoini, path_table, out_dir, tempo, notename, uta_vcv_mode)
+
     # フルラベルのコンテキストをモノラベルに写し、フルラベル化する。
     print('Converting mono-label files to full-label files and rounding them.')
     mono2full_and_round(
-        join(out_dir, 'label_phone_align'), join(out_dir, 'label_phone_score'), prefix)
+        join(out_dir, 'label_phone_align'),
+        join(out_dir, 'label_phone_score'),
+        prefix
+    )
+
     # おわり
     print(f'All files were successfully saved to {abspath(out_dir)}')
 
