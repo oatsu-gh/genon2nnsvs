@@ -18,6 +18,7 @@ exclude_songs: []
 ## table file for translating lyrics to phonemes.
 # NOTE: ラベル作るときに手動指定するので必要ない気がする。
 # TODO: 母音と母音の区別をつけるためのconfファイルも使うようにする。
+sinsy_dic: ./dic
 table_path: ./dic/kana2phonemes_utf8_for_oto2lab_noAIUEO.table
 
 ## HTS-style question used for extracting musical/linguistic context from musicxml files
