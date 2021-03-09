@@ -16,9 +16,27 @@ from shutil import copy
 from typing import List
 
 import utaupy as up
+import yaml
+from pydub import AudioSegment
 from tqdm import tqdm
 from utaupy.otoini import OtoIni
 from utaupy.ust import NOTENAME_TO_NOTENUM_DICT
+
+
+def force_otoinifile_cutoff_negative(path_otoini_in, path_otoini_out):
+    """
+    指定されたoto.iniを読んで、右ブランクが正の値なときはwavファイルの長さを調べて負にする。
+    """
+    otoini = up.otoini.load(path_otoini_in)
+    voice_dir = dirname(path_otoini_in)
+    if any([oto.cutoff > 0 for oto in otoini]):
+        for oto in otoini:
+            path_wav = join(voice_dir, oto.filename)
+            sound = AudioSegment.from_file(path_wav, 'wav')
+            duration_ms = 1000 * sound.duration_seconds
+            absolute_cutoff_position = duration_ms - oto.cutoff
+            oto.cutoff = -(absolute_cutoff_position - oto.offset)
+        otoini.write(path_otoini_out)
 
 
 def prepare_otoini(otoini: OtoIni):
@@ -64,7 +82,7 @@ def split_otoini(otoini: OtoIni) -> List[OtoIni]:
     return l_2d
 
 
-def generate_ustobj(otoini: OtoIni, notenum: int, tempo: float) -> up.ust.Ust:
+def generate_ustobj(otoini: OtoIni, notenum: int, tempo: float, pause_length_by_beat) -> up.ust.Ust:
     """
     OtoIniをもとにUSTオブジェクトを生成する。
     休符も含めて作るが、タイミングずれはあると思う。
@@ -81,10 +99,14 @@ def generate_ustobj(otoini: OtoIni, notenum: int, tempo: float) -> up.ust.Ust:
     note.tempo = tempo
     note.notenum = notenum
     duration_ms = (otoini[0].offset + otoini[0].preutterance)
-    # 32分音符で丸める
-    # 32分音符のノート長は 480/8 = 60
-    # ust.notes[-2].length = 60 * round((duration_ms * note.tempo / 125) / 60)
-    note.length = 60 * round(duration_ms * tempo / 7500)
+
+    if pause_length_by_beat == 'auto':
+        # 32分音符で丸める
+        # 32分音符のノート長は 480/8 = 60
+        # ust.notes[-2].length = 60 * round((duration_ms * note.tempo / 125) / 60)
+        note.length = 60 * round(duration_ms * tempo / 7500)
+    else:
+        note.length = int(pause_length_by_beat * 480)
     ust.notes.append(note)
 
     # 原音設定がされているエイリアスをノート化
@@ -150,14 +172,18 @@ def generate_labelobj(otoini: OtoIni, d_table: dict) -> up.label.Label:
     return label
 
 
-def generate_labfile(path_otoini, path_table, out_dir, tempo, notename, uta_vcv_mode):
+def generate_labfile(path_otoini, path_table, out_dir, tempo, notename, uta_vcv_mode, pause_length_by_beat='auto'):
     """
     ラベルファイルを生成する。wavファイルの複製もする。
     """
+    # 右ブランクを負の値で上書きする。
+    force_otoinifile_cutoff_negative(path_otoini, path_otoini)
     # 原音設定ファイル(oto.ini)を読み取る
     otoini = up.otoini.load(path_otoini)
-    if any([oto.cutoff > 0 for oto in otoini]):
-        raise ValueError('正の値の右ブランクがあります。setParamで修正してください。')
+
+    # if any([oto.cutoff > 0 for oto in otoini]):
+    #     raise ValueError('正の値の右ブランクがあります。setParamで修正してください。')
+
     # かな→音素変換テーブルを読み取る
     table = up.table.load(path_table)
     # 音階名を音階番号に変換する
@@ -178,7 +204,7 @@ def generate_labfile(path_otoini, path_table, out_dir, tempo, notename, uta_vcv_
     for otoini in tqdm(otoini_2d):
         name = otoini[0].filename.replace('.wav', '')
         # OtoIniからUstを生成してファイル出力
-        ust = generate_ustobj(otoini, notenum, tempo)
+        ust = generate_ustobj(otoini, notenum, tempo, pause_length_by_beat)
         if uta_vcv_mode:
             configure_notenum_for_uta_vcv(ust)
         ust.write(join(out_dir, 'ust', f'{prefix}{name}.ust'))
@@ -236,8 +262,12 @@ def main():
     # ファイルを出力するフォルダ
     out_dir = './data'
 
+    with open('config.yaml', 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+
     # かな→音素変換テーブルを指定
-    path_table = input('tableファイルを指定してください。\n>>> ')
+    # path_table = input('tableファイルを指定してください。\n>>> ')
+    path_table = config['table_path'].strip('\'"')
 
     # oto.iniファイルを選択してもらう
     path_otoini = input('原音設定ファイルを指定してください。\n>>> ').strip('"')
@@ -246,6 +276,16 @@ def main():
 
     # 原音の収録テンポ
     tempo = float(input('収録テンポを入力してください。\n>>> '))
+
+    # 最初の休符の長さ
+    pause_length = input('最初の発声までの休符の拍数を入力してください。(何も入力せずにエンターを押した場合は自動推定します。)\n>>> ')
+    if pause_length in ['auto', 'a', '']:
+        pause_length = 'auto'
+    else:
+        try:
+            pause_length = int(pause_length)
+        except TypeError:
+            pause_length = 'auto'
 
     # 原音フォルダ名から収録音階を推測する。
     prefix = basename(dirname(path_otoini))
@@ -261,7 +301,7 @@ def main():
 
     # otoiniをもとにモノラベルとフルラベルを作る。
     print('Converting oto.ini to label filesj and UST files and copying WAV files.')
-    generate_labfile(path_otoini, path_table, out_dir, tempo, notename, uta_vcv_mode)
+    generate_labfile(path_otoini, path_table, out_dir, tempo, notename, uta_vcv_mode, pause_length)
 
     # フルラベルのコンテキストをモノラベルに写し、フルラベル化する。
     print('Converting mono-label files to full-label files and rounding them.')
