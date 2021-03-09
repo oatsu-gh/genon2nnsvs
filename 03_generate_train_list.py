@@ -26,9 +26,14 @@ def generate_train_list(out_dir, interval: int = 13):
     if interval <= 5:
         raise ValueError('Argument "interval" must be larger than 5.')
     makedirs(join(out_dir, 'list'), exist_ok=True)
+
     # 学習対象のファイル一覧を取得
     utt_list = glob(f'{join(out_dir)}/acoustic/wav/*.wav')
     utt_list = sorted([splitext(basename(path))[0] for path in utt_list])
+    while len(utt_list) % interval == 0:
+        interval += 1
+    print(f'generate_train_list: interval: {interval}')
+
     # 各種曲名リストを作る
     eval_list = [songname for idx, songname in enumerate(utt_list) if idx % interval == 0]
     dev_list = [songname for idx, songname in enumerate(utt_list) if idx % interval == 5]
