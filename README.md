@@ -1,6 +1,13 @@
 # genon2nnsvs
  UTAU音源の原音をNNSVSで学習できるようにする。
 
+## 開発環境
+
+- Windows10
+- Python3.8
+- utaupy 開発版
+- WSL1 (Ubuntu 20.04)
+
 ## 使い方
 
 ### UTAU音源の前処理
