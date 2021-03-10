@@ -37,9 +37,11 @@ def generate_train_list(out_dir, interval: int = 13):
     # 各種曲名リストを作る
     eval_list = [songname for idx, songname in enumerate(utt_list) if idx % interval == 0]
     dev_list = [songname for idx, songname in enumerate(utt_list) if idx % interval == 5]
-    train_list = [songname for idx, songname in enumerate(utt_list) if idx % interval != 5]
+    train_list = [songname for idx, songname in enumerate(utt_list)
+                  if (idx % interval != 0 and idx % interval != 5)]
+
     # ファイルの出力パス
-    path_utt_list = join(out_dir, 'list', 'utt.list')
+    path_utt_list = join(out_dir, 'list', 'utt_list.txt')
     path_eval_list = join(out_dir, 'list', 'eval.list')
     path_dev_list = join(out_dir, 'list', 'dev.list')
     path_train_list = join(out_dir, 'list', 'train_no_dev.list')
