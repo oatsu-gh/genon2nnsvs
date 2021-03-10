@@ -30,10 +30,10 @@ def place_files_for_each_model(out_dir):
     copy_tree(wav_dir_in, join(acoustic_dir, 'wav'))
     print(f'Copying files to {duration_dir}')
     copy_tree(full_align_dir_in, join(duration_dir, 'label_phone_align'))
-    copy_tree(full_align_dir_in, join(duration_dir, 'label_phone_score'))
+    copy_tree(full_score_dir_in, join(duration_dir, 'label_phone_score'))
     print(f'Copying files to {timelag_dir}')
     copy_tree(full_align_dir_in, join(timelag_dir, 'label_phone_align'))
-    copy_tree(full_align_dir_in, join(timelag_dir, 'label_phone_score'))
+    copy_tree(full_score_dir_in, join(timelag_dir, 'label_phone_score'))
 
     print('All files were successfully copied.')
 
